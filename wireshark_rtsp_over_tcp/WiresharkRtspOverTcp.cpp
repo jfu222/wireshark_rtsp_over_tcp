@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,7 +56,7 @@ CWiresharkRtspOverTcp::~CWiresharkRtspOverTcp()
 }
 
 
-int CWiresharkRtspOverTcp::splitRtspOverTcp(std::string inputFilename, std::string rtspServerIp, std::string outputDir, int startFrameNumber, int endFrameNumber)
+int CWiresharkRtspOverTcp::splitRtspOverTcp(std::string inputFilename, std::string rtspServerIp, int rtspServerPort, std::string outputDir, int startFrameNumber, int endFrameNumber)
 {
     int ret = 0;
 
@@ -78,15 +77,16 @@ int CWiresharkRtspOverTcp::splitRtspOverTcp(std::string inputFilename, std::stri
     m_outputFilename = outputDir + "/" + baseName;
     m_outputDir = outputDir;
 
-    std::string filterIpRule_rtspServerIp = rtspServerIp;
+    std::string filterRule_rtspServerIp = rtspServerIp;
+    int filterRule_rtspServerPort = rtspServerPort;
 
     ret = createNestedDir(outputDir.c_str());
 
     //-------------------------
-    std::string outFileTcpPayload = m_outputFilename + "." + filterIpRule_rtspServerIp + ".tcp_payload";
+    std::string outFileTcpPayload = m_outputFilename + "." + filterRule_rtspServerIp + ".tcp_payload";
     
     printf("%s\n", outFileTcpPayload.c_str());
-#if 1
+
     FILE * fp1 = fopen(outFileTcpPayload.c_str(), "wb");
     if (fp1 == NULL)
     {
@@ -151,6 +151,11 @@ int CWiresharkRtspOverTcp::splitRtspOverTcp(std::string inputFilename, std::stri
             && frame_number >= startFrameNumber && frame_number <= endFrameNumber)
         {
             writeBytes = fwrite(framePos, frameSize, 1, fp2);
+
+            if(frame_number >= endFrameNumber)
+            {
+                break;
+            }
         }
 
         if (p2 == NULL)
@@ -166,8 +171,13 @@ int CWiresharkRtspOverTcp::splitRtspOverTcp(std::string inputFilename, std::stri
         BREAK_IF_FAILED(ret != 0);
 
         //------------¹ýÂËIPµØÖ·-----------------
-        std::string ip_src = tcp_frame_info.ip_header.source_ip_addr_str;
-        if (ip_src != filterIpRule_rtspServerIp)
+        std::string ip_src = tcp_frame_info.ip_header.ipv4.source_ip_addr_str;
+
+        if (!(tcp_frame_info.ip_header.ip_version == 4
+                && tcp_frame_info.ip_header.ipv4.protocol == 6 //TCP=6
+                && tcp_frame_info.tcp_packet.source_port == filterRule_rtspServerPort //554
+                && ip_src == filterRule_rtspServerIp
+            ))
         {
             continue;
         }
@@ -212,9 +222,6 @@ int CWiresharkRtspOverTcp::splitRtspOverTcp(std::string inputFilename, std::stri
         //------------------------
         if (tcp_frame_info.tcp_packet.tcp_payload_length > 0)
         {
-//            ret = writeDataToFile(tcp_frame_info, tcp_buffer, tcp_buffer_filled_size, tcp_buffer_size_used);
-//            RETURN_IF_FAILED(ret != 0, ret);
-
             writeBytes = fwrite(tcp_frame_info.tcp_packet.tcp_payload, tcp_frame_info.tcp_packet.tcp_payload_length, 1, fp1);
         }
     }
@@ -246,8 +253,6 @@ int CWiresharkRtspOverTcp::splitRtspOverTcp(std::string inputFilename, std::stri
             //------------------------
             if (tcp_frame_info.tcp_packet.tcp_payload_length > 0)
             {
-//                ret = writeDataToFile(tcp_frame_info, tcp_buffer, tcp_buffer_filled_size, tcp_buffer_size_used);
-//                RETURN_IF_FAILED(ret != 0, ret);
                 writeBytes = fwrite(tcp_frame_info.tcp_packet.tcp_payload, tcp_frame_info.tcp_packet.tcp_payload_length, 1, fp1);
             }
         }
@@ -265,7 +270,7 @@ int CWiresharkRtspOverTcp::splitRtspOverTcp(std::string inputFilename, std::stri
         fclose(fp2);
         fp2 = NULL;
     }
-#endif
+
     //--------------------------------
     if(isSaveTcpdumpFile)
     {
@@ -303,25 +308,54 @@ int CWiresharkRtspOverTcp::readOneEthernetFrame(unsigned char *buffer, int buffe
     ret = tcpIpProtocol.readOneEthernetIIHeader(p1, p3 - p1 + 1, tcp_frame_info.ethernet_ii_header, p1, bufferBase);
     RETURN_IF_FAILED(ret != 0, ret);
 
+    if(tcp_frame_info.ethernet_ii_header.type != 0x0800) //IP=0x0800
+    {
+        printf("%s(%d): %s: Warn: tcp_frame_info.ethernet_ii_header.type(0x%x) != 0x0800(IP);\n", __FILE__, __LINE__, __FUNCTION__, tcp_frame_info.ethernet_ii_header.type);
+        
+        newPos = p1 + tcp_frame_info.ethernet_frame.capture_length;
+        return 0;
+    }
+
     //-------Internet Protocol Header---------
     ret = tcpIpProtocol.readOneInterNetProtocolHeader(p1, p3 - p1 + 1, tcp_frame_info.ip_header, p1, bufferBase);
     RETURN_IF_FAILED(ret != 0, ret);
 
-    //-------TCP Header---------
-    ret = tcpIpProtocol.readOneTransmissionControlProtocolHeader(p1, p3 - p1 + 1, tcp_frame_info.tcp_packet, p1, bufferBase);
-    RETURN_IF_FAILED(ret != 0, ret);
-
-    //-------TCP Payload---------
-    tcp_frame_info.tcp_packet.tcp_payload_length = tcp_frame_info.ip_header.total_length - tcp_frame_info.ip_header.ip_header_length - tcp_frame_info.tcp_packet.tcp_header_length;
-    tcp_frame_info.tcp_packet.tcp_payload = p1;
-    RETURN_IF_FAILED(tcp_frame_info.tcp_packet.tcp_payload_length > MSS1, -1);
-
-    tcp_frame_info.tcp_packet.next_sequence_number = 0;
-    if (tcp_frame_info.tcp_packet.tcp_payload_length > 0)
+    //--------------------------
+    if((tcp_frame_info.ip_header.ip_version == 4 && tcp_frame_info.ip_header.ipv4.protocol == 6) //6=TCP
+        || (tcp_frame_info.ip_header.ip_version == 6 && tcp_frame_info.ip_header.ipv6.next_header == 6)
+        )
     {
-        tcp_frame_info.tcp_packet.next_sequence_number = tcp_frame_info.tcp_packet.sequence_number + tcp_frame_info.tcp_packet.tcp_payload_length;
-    }
+        //-------TCP Header---------
+        ret = tcpIpProtocol.readOneTransmissionControlProtocolHeader(p1, p3 - p1 + 1, tcp_frame_info.tcp_packet, p1, bufferBase);
+        RETURN_IF_FAILED(ret != 0, ret);
 
+        //-------TCP Payload---------
+        tcp_frame_info.tcp_packet.tcp_payload_length = tcp_frame_info.ip_header.ipv4.total_length - tcp_frame_info.ip_header.ipv4.ip_header_length - tcp_frame_info.tcp_packet.tcp_header_length;
+        tcp_frame_info.tcp_packet.tcp_payload = p1;
+        RETURN_IF_FAILED(tcp_frame_info.tcp_packet.tcp_payload_length > MSS1, -1);
+
+        tcp_frame_info.tcp_packet.next_sequence_number = 0;
+        if (tcp_frame_info.tcp_packet.tcp_payload_length > 0)
+        {
+            tcp_frame_info.tcp_packet.next_sequence_number = tcp_frame_info.tcp_packet.sequence_number + tcp_frame_info.tcp_packet.tcp_payload_length;
+        }
+    }
+    else  if((tcp_frame_info.ip_header.ip_version == 4 && tcp_frame_info.ip_header.ipv4.protocol == 17) //17=UDP
+        || (tcp_frame_info.ip_header.ip_version == 6 && tcp_frame_info.ip_header.ipv6.next_header == 17)
+        )
+    {
+        //-------UDP Header---------
+        ret = tcpIpProtocol.readOneUserDatagramProtocolHeader(p1, p3 - p1 + 1, tcp_frame_info.udp_packet, p1, bufferBase);
+        RETURN_IF_FAILED(ret != 0, ret);
+
+        //-------UDP Payload---------
+        tcp_frame_info.udp_packet.udp_payload_length = tcp_frame_info.udp_packet.udp_header_and_data_length - 8;
+        tcp_frame_info.udp_packet.udp_payload = p1;
+    }
+    else
+    {
+        
+    }
 //    ret = tcp_frame_info.printInfo();
 
     newPos = p1;

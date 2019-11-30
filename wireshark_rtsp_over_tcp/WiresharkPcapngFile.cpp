@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "WiresharkPcapngFile.h"
 
 
@@ -67,7 +66,15 @@ int CWiresharkPcapngFile::probeFileType(const char *inputFilename)
     fclose(fp);
     fp = NULL;
 
-    RETURN_IF_FAILED(fileSize < 24, -3);
+    if(fileSize < 24)
+    {
+        if (buffer)
+        {
+            free(buffer);
+            buffer = NULL;
+        }
+        RETURN_IF_FAILED(fileSize < 24, -3);
+    }
 
     //--------------------
     unsigned char *p = buffer;
@@ -77,19 +84,19 @@ int CWiresharkPcapngFile::probeFileType(const char *inputFilename)
 
     if (p1[0] == 0x0A && p1[1] == 0x0D && p1[2] == 0x0D && p1[3] == 0x0A)
     {
-        m_fileHeader.block_type = (p1[0] << 24) | (p1[1] << 16) | (p1[2] << 8) | p1[3];
+        m_fileHeader.block_type = (p1[3] << 24) | (p1[2] << 16) | (p1[1] << 8) | p1[0];
         p1 += 4;
 
-        m_fileHeader.block_total_length = (p1[0] << 24) | (p1[1] << 16) | (p1[2] << 8) | p1[3];
+        m_fileHeader.block_total_length = (p1[3] << 24) | (p1[2] << 16) | (p1[1] << 8) | p1[0];
         p1 += 4;
 
-        m_fileHeader.magic = (p1[0] << 24) | (p1[1] << 16) | (p1[2] << 8) | p1[3];
+        m_fileHeader.magic = (p1[3] << 24) | (p1[2] << 16) | (p1[1] << 8) | p1[0];
         p1 += 4;
 
-        m_fileHeader.version_major = (p1[0] << 8) | p1[1];
+        m_fileHeader.version_major = (p1[1] << 8) | p1[0];
         p1 += 2;
 
-        m_fileHeader.version_minor = (p1[0] << 8) | p1[1];
+        m_fileHeader.version_minor = (p1[1] << 8) | p1[0];
         p1 += 2;
 
         //-------------------------
@@ -114,10 +121,43 @@ int CWiresharkPcapngFile::probeFileType(const char *inputFilename)
     return -1;
 }
 
+/*
+http://xml2rfc.tools.ietf.org/cgi-bin/xml2rfc.cgi?url=https://raw.githubusercontent.com/pcapng/pcapng/master/draft-tuexen-opsawg-pcapng.xml&modeAsFormat=html/ascii&type=ascii#section_epb
 
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +---------------------------------------------------------------+
+ 0 |                    Block Type = 0x00000006                    |
+   +---------------------------------------------------------------+
+ 4 |                      Block Total Length                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ 8 |                         Interface ID                          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+12 |                        Timestamp (High)                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+16 |                        Timestamp (Low)                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+20 |                    Captured Packet Length                     |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+24 |                    Original Packet Length                     |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+28 /                                                               /
+   /                          Packet Data                          /
+   /              variable length, padded to 32 bits               /
+   /                                                               /
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   /                                                               /
+   /                      Options (variable)                       /
+   /                                                               /
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                      Block Total Length                       |
+   +---------------------------------------------------------------+
+*/
 int CWiresharkPcapngFile::getNextNetworkFrame(unsigned char *&framePos, int &frameSize)
 {
     int ret = 0;
+    
+    RETURN_IF_FAILED(m_bufferPosNow == NULL, -1);
 
     //--------------------
     unsigned char *p = m_bufferPosNow;
@@ -130,36 +170,36 @@ int CWiresharkPcapngFile::getNextNetworkFrame(unsigned char *&framePos, int &fra
 
     while (p1 < p3)
     {
-        block_type = (p1[0] << 24) | (p1[1] << 16) | (p1[2] << 8) | p1[3];
+        block_type = (p1[3] << 24) | (p1[2] << 16) | (p1[1] << 8) | p1[0];
         p1 += 4;
 
-        block_total_length = (p1[0] << 24) | (p1[1] << 16) | (p1[2] << 8) | p1[3];
+        block_total_length = (p1[3] << 24) | (p1[2] << 16) | (p1[1] << 8) | p1[0];
         p1 += 4;
 
         //------------------------
         if (block_type == 1) //Interface Description Block
         {
-
+            p1 += (block_total_length - 8);
         }
         else if (block_type == 2) //Packet Block
         {
-
+            p1 += (block_total_length - 8);
         }
         else if (block_type == 3) //Simple Packet Block
         {
-
+            p1 += (block_total_length - 8);
         }
         else if (block_type == 4) //Name Resolution Block
         {
-
+            p1 += (block_total_length - 8);
         }
         else if (block_type == 5) //Interface Statistics Block
         {
-
+            p1 += (block_total_length - 8);
         }
         else if (block_type == 6) //Enhanced Packet Block
         {
-            int interface_id = (p1[0] << 24) | (p1[1] << 16) | (p1[2] << 8) | p1[3];
+            int interface_id = (p1[3] << 24) | (p1[2] << 16) | (p1[1] << 8) | p1[0];
             p1 += 4;
 
             framePos = p1;

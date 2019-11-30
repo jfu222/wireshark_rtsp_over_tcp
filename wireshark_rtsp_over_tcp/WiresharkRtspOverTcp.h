@@ -33,7 +33,7 @@ public:
     CWiresharkRtspOverTcp();
     ~CWiresharkRtspOverTcp();
 
-    int splitRtspOverTcp(std::string inputFilename, std::string rtspServerIp, std::string outputDir, int startFrameNumber, int endFrameNumber);
+    int splitRtspOverTcp(std::string inputFilename, std::string rtspServerIp, int rtspServerPort, std::string outputDir, int startFrameNumber, int endFrameNumber);
     int readOneEthernetFrame(unsigned char *buffer, int bufferSize, int frame_number, TCP_FRAME_INFO &tcp_frame_info, unsigned char *&newPos, unsigned char *bufferBase);
     int writeDataToFile(TCP_FRAME_INFO &tcp_frame_info, unsigned char *tcp_buffer, int &tcp_buffer_filled_size, int &tcp_buffer_size_used);
     int probeFileType(const char *inputFilename, CAPTURE_NETWORK_PACKET_FILE_TYPE &fileType); //探测抓包文件的类型

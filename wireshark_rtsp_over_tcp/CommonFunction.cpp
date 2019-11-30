@@ -56,6 +56,11 @@ int getFileDirnameAndBasenameAndExtname(const char *fileName, std::string &dirNa
 #if defined(_WIN32) || defined(_WIN64)
 int createNestedDir(const char *dir) //创建嵌套目录
 {
+    if (strlen(dir) >= 600)
+    {
+        return -1;
+    }
+
     char dir1[600] = { 0 };
     char dir2[600] = { 0 };
     int flag = 0;
@@ -67,6 +72,14 @@ int createNestedDir(const char *dir) //创建嵌套目录
     if (len <= 3) // 如果类似 "D:\" 则返回错误
     {
         return -1;
+    }
+
+    for (int i = 0; i < len; ++i)
+    {
+        if (dir1[i] == '/')
+        {
+            dir1[i] = '\\';
+        }
     }
 
     if (dir1[len - 1] != '\\')
@@ -109,6 +122,11 @@ int createNestedDir(const char *dir) //创建嵌套目录
 #else
 int createNestedDir(const char *dir) //创建嵌套目录
 {
+    if (strlen(dir) >= 600)
+    {
+        return -1;
+    }
+
     char dir1[600] = { 0 };
     char dir2[600] = { 0 };
     int flag = 0;
@@ -117,6 +135,14 @@ int createNestedDir(const char *dir) //创建嵌套目录
     strcpy(dir1, dir);
 
     int len = strlen(dir1);
+
+    for (int i = 0; i < len; ++i)
+    {
+        if (dir1[i] == '\\')
+        {
+            dir1[i] = '/';
+        }
+    }
 
     if (dir1[len - 1] != '/')
     {

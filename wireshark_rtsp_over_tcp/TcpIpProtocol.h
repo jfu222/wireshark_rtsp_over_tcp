@@ -50,7 +50,7 @@ public:
 
 
 //互联网层IP包头部 [TCP-IP详解卷1:协议 图3-1 24页]
-typedef struct _INTERNET_PROTOCOL_HEADER_
+typedef struct _INTERNET_PROTOCOL_V4_HEADER_
 {
     int version; //4bit 版本 Version: 4
     int ip_header_length; //4bit IP包头部长度 Header Length: 20 bytes (5)
@@ -62,7 +62,7 @@ typedef struct _INTERNET_PROTOCOL_HEADER_
     int flags_more_fragments_1bit; //1bit 标志字段 ..0. .... .... .... = More fragments: Not set
     int flags_fragments_offset_13bits; //13bit 标志字段 分段偏移量（将一个IP包分段后传输时，本段的标识）...0 0000 0000 0000 = Fragment offset: 0
     int time_to_live; //8bit 生存期TTL Time to live: 62
-    int protocol; //8bit 此包内封装的上层协议 Protocol: TCP (6)
+    int protocol; //8bit 此包内封装的上层协议 Protocol: TCP (6); UDP(17) https://tools.ietf.org/html/rfc1700 Page7
     char protocol_str[10]; //8bit 此包内封装的上层协议 Protocol: TCP (6)
     int header_checksum; //16bit 头部数据的校验和 Header checksum: 0x326e [validation disabled]
     int source_ip_addr; //32bit 源IP地址 Source: 172.31.25.211
@@ -73,7 +73,7 @@ typedef struct _INTERNET_PROTOCOL_HEADER_
 public:
     int printInfo()
     {
-        printf("-----INTERNET_PROTOCOL_HEADER-----\n");
+        printf("-----INTERNET_PROTOCOL_V4_HEADER-----\n");
         printf("version: %d\n", version);
         printf("ip_header_length: %d bytes\n", ip_header_length);
         printf("differentiated_services_field: %d\n", differentiated_services_field);
@@ -93,6 +93,113 @@ public:
         printf("destination_ip_addr_str: %s\n", destination_ip_addr_str);
         return 0;
     }
+}INTERNET_PROTOCOL_V4_HEADER;
+
+
+/*
+https://tools.ietf.org/html/rfc2460#section-3
+
+IPv6 Header Format
+
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|Version| Traffic Class |           Flow Label                  |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|         Payload Length        |  Next Header  |   Hop Limit   |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                                                               +
+|                                                               |
++                         Source Address                        +
+|                                                               |
++                                                               +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                                                               +
+|                                                               |
++                      Destination Address                      +
+|                                                               |
++                                                               +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+*/
+typedef struct _INTERNET_PROTOCOL_V6_HEADER_
+{
+    int version; //4-bit Internet Protocol version number = 6
+    int traffic_class; //8-bit traffic class field.
+    int flow_label; //20-bit flow label.
+    int payload_length; //16-bit unsigned integer. Length of the IPv6 payload, i.e., the rest of the packet following this IPv6 header, in octets.
+    int next_header; //8-bit selector. Identifies the type of header immediately following the IPv6 header. Protocol: TCP (6); UDP(17) https://tools.ietf.org/html/rfc1700 Page7
+    int hop_limit; //8-bit unsigned integer.  Decremented by 1 by each node that forwards the packet. The packet is discarded if Hop Limit is decremented to zero.
+    char source_address[16]; //128-bit address of the originator of the packet.See [ADDRARCH]. Source: fe80::35df:9e1:c898:7eb8
+    char destination_address[16]; //128-bit address of the intended recipient of the packet (possibly not the ultimate recipient, if a Routing header is present). Destination: ff02::1:2
+
+public:
+    int printInfo()
+    {
+        printf("-----INTERNET_PROTOCOL_V6_HEADER-----\n");
+        printf("version: %d\n", version);
+        printf("traffic_class: %d\n", traffic_class);
+        printf("flow_label: %d\n", flow_label);
+        printf("payload_length: %d bytes\n", payload_length);
+        printf("next_header: %d (0x%x)\n", next_header, next_header);
+        printf("hop_limit: %d\n", hop_limit);
+
+        printf("source_address: ");
+        for(int i = 0; i < 16; i += 2)
+        {
+            if(i != 14)
+            {
+                printf("%02x%02x::\n", source_address[i], source_address[i + 1]);
+            }else if(i != 14)
+            {
+                printf("%02x%02x\n", source_address[i], source_address[i + 1]);
+            }
+        }
+        printf("\n");
+        
+        printf("destination_address: ");
+        for(int i = 0; i < 16; i += 2)
+        {
+            if(i != 14)
+            {
+                printf("%02x%02x::\n", destination_address[i], destination_address[i + 1]);
+            }else if(i != 14)
+            {
+                printf("%02x%02x\n", destination_address[i], destination_address[i + 1]);
+            }
+        }
+        printf("\n");
+        return 0;
+    }
+}INTERNET_PROTOCOL_V6_HEADER;
+
+
+typedef struct _INTERNET_PROTOCOL_HEADER_
+{
+    int ip_version; // 0, 4 or 6
+    INTERNET_PROTOCOL_V4_HEADER ipv4;
+    INTERNET_PROTOCOL_V6_HEADER ipv6;
+
+public:
+    int printInfo()
+    {
+        printf("-----INTERNET_PROTOCOL_HEADER-----\n");
+        if(ip_version == 4)
+        {
+            ipv4.printInfo();
+        }
+        else if(ip_version == 6)
+        {
+            ipv6.printInfo();
+        }
+        else
+        {
+            printf("%s(%d): %s: Error: ip_version=%d; not 4 or 6\n", __FILE__, __LINE__, __FUNCTION__, ip_version);
+            return -1;
+        }
+        return 0;
+    };
 }INTERNET_PROTOCOL_HEADER;
 
 
@@ -221,12 +328,44 @@ public:
 }TRANSMISSION_CONTROL_PROTOCOL_HEADER;
 
 
+//User Datagram Protocol (UDP协议)
+//https://tools.ietf.org/html/rfc768
+typedef struct _USER_DATAGRAM_PROTOCOL_HEADER_
+{
+    int source_port; //16-bit
+    int destination_port; //16-bit
+    int udp_header_and_data_length; //16-bit Length  is the length  in octets  of this user datagram  including  this header and the data.
+    int checksum; //16-bit
+    unsigned char *udp_payload; //UDP有效载荷
+    int udp_payload_length; 
+
+public:
+    int printInfo()
+    {
+        printf("-----USER_DATAGRAM_PROTOCOL_HEADER-----\n");
+        printf("source_port: %d\n", source_port);
+        printf("destination_port: %d\n", destination_port);
+        printf("udp_header_and_data_length: %d(0x%x)\n", udp_header_and_data_length, udp_header_and_data_length);
+        printf("checksum: 0x%x\n", checksum);
+        printf("udp_payload_length: %d(0x%x)\n", udp_payload_length, udp_payload_length);
+        if (udp_payload_length >= 6)
+        {
+            printf("payload: 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x\n", 
+                udp_payload[0], udp_payload[1], udp_payload[2], udp_payload[3], udp_payload[4], udp_payload[5]);
+        }
+
+        return 0;
+    };
+}USER_DATAGRAM_PROTOCOL_HEADER;
+
+
 typedef struct _TCP_FRAME_INFO_
 {
     ETHERNET_FRAME ethernet_frame;
     ETHERNET_II_HEADER ethernet_ii_header;
     INTERNET_PROTOCOL_HEADER ip_header;
     TRANSMISSION_CONTROL_PROTOCOL_HEADER tcp_packet;
+    USER_DATAGRAM_PROTOCOL_HEADER udp_packet;
 
 public:
     int printInfo()
@@ -234,7 +373,18 @@ public:
         ethernet_frame.printInfo();
         ethernet_ii_header.printInfo();
         ip_header.printInfo();
-        tcp_packet.printInfo();
+        if((ip_header.ip_version == 4 && ip_header.ipv4.protocol == 6) //6=TCP
+            || (ip_header.ip_version == 6 && ip_header.ipv6.next_header == 6)
+            )
+        {
+            tcp_packet.printInfo();
+        }
+        else if((ip_header.ip_version == 4 && ip_header.ipv4.protocol == 17) //17=UDP
+            || (ip_header.ip_version == 6 && ip_header.ipv6.next_header == 17)
+            )
+        {
+            udp_packet.printInfo();
+        }
         return 0;
     }
 }TCP_FRAME_INFO;
@@ -253,6 +403,7 @@ public:
     int readOneEthernetIIHeader(unsigned char *buffer, int bufferSize, ETHERNET_II_HEADER &ethernetIIHeader, unsigned char *&newPos, unsigned char *bufferBase);
     int readOneInterNetProtocolHeader(unsigned char *buffer, int bufferSize, INTERNET_PROTOCOL_HEADER &internetProtocolHeader, unsigned char *&newPos, unsigned char *bufferBase);
     int readOneTransmissionControlProtocolHeader(unsigned char *buffer, int bufferSize, TRANSMISSION_CONTROL_PROTOCOL_HEADER &tcpHeader, unsigned char *&newPos, unsigned char *bufferBase);
+    int readOneUserDatagramProtocolHeader(unsigned char *buffer, int bufferSize, USER_DATAGRAM_PROTOCOL_HEADER &udpHeader, unsigned char *&newPos, unsigned char *bufferBase);
 };
 
 

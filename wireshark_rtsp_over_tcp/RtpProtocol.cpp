@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -314,7 +313,7 @@ int CRtpProtocol::splitSingleH264FileToMultiFilesByIFrame(std::string inputFilen
     ret = createNestedDir(outputDir.c_str());
     if (ret != 0)
     {
-        printf("%s(%d): %s: Cannot create directory! outputDir ='%s'; ret=%d;\n", __FILE__, __LINE__, __FUNCTION__, outputDir.c_str(), ret);
+        printf("%s(%d): %s: Error: Cannot create directory! outputDir ='%s'; ret=%d;\n", __FILE__, __LINE__, __FUNCTION__, outputDir.c_str(), ret);
         return -1;
     }
 
@@ -324,7 +323,7 @@ int CRtpProtocol::splitSingleH264FileToMultiFilesByIFrame(std::string inputFilen
     FILE * fp = fopen(inputFilename.c_str(), "rb");
     if (fp == NULL)
     {
-        printf("%s(%d): %s: Cannot open file to read! inputFilename='%s'\n", __FILE__, __LINE__, __FUNCTION__, inputFilename.c_str());
+        printf("%s(%d): %s: Error: Cannot open file to read! inputFilename='%s'\n", __FILE__, __LINE__, __FUNCTION__, inputFilename.c_str());
         return -1;
     }
 
@@ -439,7 +438,7 @@ int CRtpProtocol::splitSingleH264FileToMultiFilesByStartCode(std::string inputFi
     ret = createNestedDir(outputDir.c_str());
     if (ret != 0)
     {
-        printf("%s(%d): %s: Cannot create directory! outputDir ='%s'; ret=%d;\n", __FILE__, __LINE__, __FUNCTION__, outputDir.c_str(), ret);
+        printf("%s(%d): %s: Error: Cannot create directory! outputDir ='%s'; ret=%d;\n", __FILE__, __LINE__, __FUNCTION__, outputDir.c_str(), ret);
         return -1;
     }
 
@@ -449,7 +448,7 @@ int CRtpProtocol::splitSingleH264FileToMultiFilesByStartCode(std::string inputFi
     FILE * fp = fopen(inputFilename.c_str(), "rb");
     if (fp == NULL)
     {
-        printf("%s(%d): %s: Cannot open file to read! inputFilename='%s'\n", __FILE__, __LINE__, __FUNCTION__, inputFilename.c_str());
+        printf("%s(%d): %s: Error: Cannot open file to read! inputFilename='%s'\n", __FILE__, __LINE__, __FUNCTION__, inputFilename.c_str());
         return -1;
     }
 
@@ -457,7 +456,7 @@ int CRtpProtocol::splitSingleH264FileToMultiFilesByStartCode(std::string inputFi
     long fileSize = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
-    unsigned char *buffer = (unsigned char *)malloc(sizeof(unsigned char) * fileSize); //暂时将整个文件读入内存，后续可以改成按frame大小读取
+    unsigned char *buffer = (unsigned char *)malloc(sizeof(unsigned char) * fileSize); //暂时将整个文件读入内存，后续可以改成指定大小读取
     RETURN_IF_FAILED(buffer == NULL, -3);
 
     size_t readSize = fread(buffer, fileSize, 1, fp);
